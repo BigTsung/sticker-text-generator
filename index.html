@@ -95,6 +95,12 @@
   .col-en { color: #c7d2e6; }
   .col-zh { color: #d9c7c7; width: 24%; }
   .col-actions { width: 150px; white-space: nowrap; text-align: right; }
+  .col-check { width: 30px; text-align: center; }
+  .col-check input, tbody .col-check input { cursor: pointer; }
+  .batch-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 9px 12px;
+    margin-bottom: 12px; border: 1px solid var(--accent-2); border-radius: 8px; background: var(--panel); }
+  .batch-bar .c { color: var(--accent); font-size: 13px; margin-right: auto; }
+  .batch-bar select { width: auto; min-width: 120px; }
   .row-btn { padding: 4px 8px; font-size: 12px; border: none; background: transparent; color: var(--muted); }
   .row-btn:hover { background: var(--panel-2); color: var(--text); }
   .row-btn.copy:hover { color: var(--green); }
@@ -201,9 +207,19 @@
     <button class="danger" onclick="clearAll()">清空</button>
     <input type="file" id="csvFile" accept=".csv,.txt" style="display:none" onchange="importCSVFile(event)">
   </div>
+  <div class="chips" id="dbTypeChips" style="margin-bottom:12px"></div>
+  <div class="batch-bar" id="batchBar" style="display:none">
+    <span class="c" id="batchCount"></span>
+    <span style="color:var(--muted);font-size:12.5px">批次設類型：</span>
+    <select id="batchType"></select>
+    <button class="primary" onclick="batchSetType()">套用</button>
+    <button class="danger" onclick="batchDelete()">刪除所選</button>
+    <button onclick="clearSel()">清除選取</button>
+  </div>
   <div id="stats" class="hint"></div>
   <table>
     <thead><tr>
+      <th class="col-check"><input type="checkbox" id="selAll" onclick="toggleSelectAll(this.checked)"></th>
       <th class="col-id">編號</th><th class="col-text">貼圖文字</th><th class="col-type">類型</th>
       <th class="col-en">動作 (English)</th><th class="col-zh">動作 (中文)</th><th class="col-actions"></th>
     </tr></thead>
@@ -260,6 +276,7 @@ let data = load();
 let T = loadTemplate();
 let query = '';
 let selectedType = '全部';
+let dbType = '全部';   // 資料庫頁的類型篩選
 let lastPick = [];
 let drawnIds = new Set();   // ids already shown this round (for 換一批沒看過的)
 
@@ -270,7 +287,7 @@ function load() {
     return JSON.parse(raw) || [];
   } catch { return SEED.slice(); }
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(data)); renderDb(); renderTypeChips(); }
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(data)); renderDb(); renderTypeChips(); renderDbTypeChips(); }
 function parseOldNeg(neg) {   // migrate old "--no a, b --ar 1:1" string → {tags, ar}
   neg = (neg || '').trim(); let ar = '';
   const m = neg.match(/--ar\s+([0-9]+:[0-9]+)/); if (m) ar = m[1];
@@ -451,16 +468,59 @@ function copyAllTexts() { if (!lastPick.length) return; copyText(lastPick.map(d 
 function copyAllPrompts() { if (!lastPick.length) return; copyText(lastPick.map(d => `【${d.text}】\n${composeEn(d.poseEn)}`).join('\n\n'), '已複製全部咒語'); }
 
 /* ---- DB table ---- */
+function renderDbTypeChips() {
+  const counts = {}; data.forEach(d => { counts[d.type] = (counts[d.type]||0)+1; });
+  const chip = (name, n, val) => `<div class="chip ${dbType===val?'on':''}" onclick="pickDbType('${String(val).replace(/'/g,"\\'")}')">${esc(name)}<span class="n">${n}</span></div>`;
+  document.getElementById('dbTypeChips').innerHTML =
+    chip('全部', data.length, '全部') + allTypes().map(t => chip(t, counts[t]||0, t)).join('');
+}
+function pickDbType(t) { dbType = t; renderDbTypeChips(); renderDb(); }
+let selectedIds = new Set();   // 資料庫多選（以 id 為鍵）
+let lastFilteredIds = [];      // 目前表格顯示的 id（供全選用）
+function toggleSel(id) { if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); renderDb(); }
+function toggleSelectAll(on) { lastFilteredIds.forEach(id => on ? selectedIds.add(id) : selectedIds.delete(id)); renderDb(); }
+function clearSel() { selectedIds.clear(); renderDb(); }
+function renderBatchBar() {
+  const bar = document.getElementById('batchBar');
+  const n = selectedIds.size;
+  bar.style.display = n ? 'flex' : 'none';
+  if (n) document.getElementById('batchCount').textContent = `已選 ${n} 筆`;
+  const sel = document.getElementById('batchType');
+  if (sel && sel.options.length === 0) sel.innerHTML = '<option value="">（未分類）</option>' + allTypes().map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+}
+function batchSetType() {
+  if (!selectedIds.size) return;
+  const t = document.getElementById('batchType').value;
+  let n = 0;
+  data.forEach(d => { if (selectedIds.has(d.id)) { d.type = t; n++; } });
+  selectedIds.clear();
+  save(); toast(`已將 ${n} 筆設為「${t || '未分類'}」`);
+}
+function batchDelete() {
+  if (!selectedIds.size) return;
+  if (!confirm(`刪除所選 ${selectedIds.size} 筆？此動作無法復原（建議先匯出 CSV 備份）。`)) return;
+  const before = data.length;
+  data = data.filter(d => !selectedIds.has(d.id));
+  const n = before - data.length; selectedIds.clear();
+  save(); toast(`已刪除 ${n} 筆`);
+}
 function renderDb() {
   document.getElementById('dbCount').textContent = data.length ? `(${data.length})` : '';
   const q = query.toLowerCase();
-  const rows = data.map((d,i)=>({d,i})).filter(({d}) => !q ||
-    String(d.id).toLowerCase().includes(q) || (d.text||'').toLowerCase().includes(q) ||
-    (d.type||'').toLowerCase().includes(q) || (d.poseEn||'').toLowerCase().includes(q) || (d.poseZh||'').toLowerCase().includes(q));
-  document.getElementById('stats').textContent = query ? `顯示 ${rows.length} / ${data.length} 組` : `共 ${data.length} 組`;
+  const rows = data.map((d,i)=>({d,i})).filter(({d}) =>
+    (dbType === '全部' || d.type === dbType) &&
+    (!q || String(d.id).toLowerCase().includes(q) || (d.text||'').toLowerCase().includes(q) ||
+     (d.type||'').toLowerCase().includes(q) || (d.poseEn||'').toLowerCase().includes(q) || (d.poseZh||'').toLowerCase().includes(q)));
+  const filtered = (dbType !== '全部' || query);
+  document.getElementById('stats').textContent = filtered ? `顯示 ${rows.length} / ${data.length} 組` : `共 ${data.length} 組`;
   document.getElementById('empty').style.display = data.length ? 'none' : 'block';
+  lastFilteredIds = rows.map(({d}) => d.id);
+  const allSel = lastFilteredIds.length > 0 && lastFilteredIds.every(id => selectedIds.has(id));
+  document.getElementById('selAll').checked = allSel;
+  renderBatchBar();
   document.getElementById('tbody').innerHTML = rows.map(({d,i}) => `
     <tr>
+      <td class="col-check"><input type="checkbox" ${selectedIds.has(d.id)?'checked':''} onclick="toggleSel('${String(d.id).replace(/'/g,"\\'")}')"></td>
       <td class="col-id">${highlight(d.id)}</td>
       <td class="col-text">${highlight(d.text)}</td>
       <td class="col-type">${d.type?`<span class="tag">${highlight(d.type)}</span>`:'—'}</td>
@@ -584,6 +644,7 @@ document.addEventListener('keydown', e => { if (e.key==='Escape'){ closeEdit(); 
 
 syncTemplateFields();
 renderTypeChips();
+renderDbTypeChips();
 renderDb();
 </script>
 </body>
