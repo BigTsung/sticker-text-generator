@@ -74,6 +74,7 @@
   .rcard .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .rcard .txt { font-size: 16px; font-weight: 600; }
   .rcard .meta { color: var(--muted); font-size: 12px; }
+  .rcard .idx { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; margin-right: 3px; }
   .rcard .tag { font-size: 11px; color: var(--accent); border: 1px solid var(--border); border-radius: 12px; padding: 1px 8px; }
   .rcard .prompt { margin-top: 8px; font-size: 12px; color: #c7d2e6; word-break: break-word; display: none; }
   .rcard.show-prompt .prompt { display: block; }
@@ -203,7 +204,7 @@
     <p class="desc">從左側結果點「→」把要用的貼圖收集到這裡。清單會自動保存。</p>
     <div class="results-bar" id="chosenBar" style="display:none">
       <span class="cnt"></span>
-      <button onclick="copyChosenTexts()">複製全部文字</button>
+      <button class="primary" onclick="copyChosenAll()" title="格式：貼圖文字：動作(English)">複製全部</button>
       <button onclick="copyChosenPrompts()">複製全部咒語</button>
       <button class="danger" onclick="clearChosen()">清空</button>
     </div>
@@ -478,7 +479,7 @@ function renderResults() {
         <div><span class="txt">${esc(d.text)}</span> <span class="meta">#${esc(d.id)}</span> <span class="tag">${esc(d.type||'—')}</span></div>
         <div class="acts">
           <button class="primary" onclick="addToChosen('${String(d.id).replace(/'/g,"\\'")}')" title="加入已選清單">→</button>
-          <button onclick="copyText(${JSON.stringify(composeEn(d.poseEn)).replace(/"/g,'&quot;')}, '已複製咒語')">複製咒語</button>
+          <button onclick="copyText(${JSON.stringify(composeEn(d.poseEn)).replace(/"/g,'&quot;')}, '已複製咒語')" title="複製完整咒語">複製</button>
         </div>
       </div>
       <div class="prompt">${esc(composeEn(d.poseEn))}</div>
@@ -489,15 +490,18 @@ function renderChosen() {
   const recs = chosenIds.map(id => data.find(d => d.id === id)).filter(Boolean);
   const box = document.getElementById('chosen');
   const bar = document.getElementById('chosenBar');
-  document.getElementById('chosenCount').textContent = recs.length ? `（${recs.length} 個）` : '';
+  const cc = document.getElementById('chosenCount');
+  if (!recs.length) { cc.textContent = ''; }
+  else if (recs.length >= CHOSEN_TARGET) { cc.textContent = `（${recs.length} 個 ✓ 已達 ${CHOSEN_TARGET}）`; cc.style.color = 'var(--green)'; }
+  else { cc.textContent = `（${recs.length} 個）`; cc.style.color = 'var(--muted)'; }
   document.getElementById('chosenEmpty').style.display = recs.length ? 'none' : 'block';
   bar.style.display = recs.length ? 'flex' : 'none';
-  box.innerHTML = recs.map(d => `
+  box.innerHTML = recs.map((d, i) => `
     <div class="rcard">
       <div class="top">
-        <div><span class="txt">${esc(d.text)}</span> <span class="meta">#${esc(d.id)}</span> <span class="tag">${esc(d.type||'—')}</span></div>
+        <div><span class="idx">${i+1}.</span> <span class="txt">${esc(d.text)}</span> <span class="meta">#${esc(d.id)}</span> <span class="tag">${esc(d.type||'—')}</span></div>
         <div class="acts">
-          <button onclick="copyText(window.__cpId('${String(d.id).replace(/'/g,"\\'")}'), '已複製咒語')">複製咒語</button>
+          <button onclick="copyText(window.__cpFmt('${String(d.id).replace(/'/g,"\\'")}'), '已複製')" title="格式：貼圖文字：動作(English)">複製</button>
           <button class="danger" onclick="removeChosen('${String(d.id).replace(/'/g,"\\'")}')">移除</button>
         </div>
       </div>
@@ -506,15 +510,23 @@ function renderChosen() {
   document.querySelectorAll('#chosen .rcard').forEach(c => c.classList.toggle('show-prompt', promptsShown));
 }
 window.__cpId = id => { const d = data.find(x => x.id === id); return d ? composeEn(d.poseEn) : ''; };
+window.__cpFmt = id => { const d = data.find(x => x.id === id); return d ? `${d.text}：${d.poseEn}` : ''; };
+const CHOSEN_TARGET = 40;
+function maybeNotifyFull(before) {
+  if (before < CHOSEN_TARGET && chosenIds.length >= CHOSEN_TARGET)
+    toast(`🎉 已選達到 ${CHOSEN_TARGET} 個（LINE 一組通常 ${CHOSEN_TARGET} 張）`);
+}
 function addToChosen(id) {
+  const before = chosenIds.length;
   if (!chosenIds.includes(id)) chosenIds.push(id);
   lastPick = lastPick.filter(d => d.id !== id);
-  saveChosen(); renderResults(); renderChosen();
+  saveChosen(); renderResults(); renderChosen(); maybeNotifyFull(before);
 }
 function addAllToChosen() {
+  const before = chosenIds.length;
   lastPick.forEach(d => { if (!chosenIds.includes(d.id)) chosenIds.push(d.id); });
   const n = lastPick.length; lastPick = [];
-  saveChosen(); renderResults(); renderChosen(); toast(`已加入 ${n} 個到已選`);
+  saveChosen(); renderResults(); renderChosen(); toast(`已加入 ${n} 個到已選`); maybeNotifyFull(before);
 }
 function removeChosen(id) { chosenIds = chosenIds.filter(x => x !== id); saveChosen(); renderChosen(); }
 function clearChosen() {
@@ -522,9 +534,9 @@ function clearChosen() {
   if (!confirm(`清空已選清單（${chosenIds.length} 個）？`)) return;
   chosenIds = []; saveChosen(); renderChosen();
 }
-function copyChosenTexts() {
+function copyChosenAll() {   // 格式：貼圖文字：動作(English)
   const recs = chosenIds.map(id => data.find(d => d.id === id)).filter(Boolean);
-  if (!recs.length) return; copyText(recs.map(d => d.text).join('\n'), '已複製全部文字');
+  if (!recs.length) return; copyText(recs.map(d => `${d.text}：${d.poseEn}`).join('\n'), `已複製全部（${recs.length} 筆）`);
 }
 function copyChosenPrompts() {
   const recs = chosenIds.map(id => data.find(d => d.id === id)).filter(Boolean);
@@ -603,7 +615,7 @@ function renderDb() {
       <td class="col-en">${highlight(d.poseEn)}</td>
       <td class="col-zh">${highlight(d.poseZh)}</td>
       <td class="col-actions">
-        <button class="row-btn copy" onclick="copyText(window.__cp(${i}), '已複製咒語')">複製咒語</button>
+        <button class="row-btn copy" onclick="copyText(window.__cp(${i}), '已複製咒語')" title="複製完整咒語">複製</button>
         <button class="row-btn" onclick="openEdit(${i})">編輯</button>
         <button class="row-btn del" onclick="delRow(${i})">刪除</button>
       </td>
