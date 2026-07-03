@@ -27,7 +27,7 @@
   button.primary:hover { background: var(--accent); }
   button.danger { color: var(--red); }
   button.danger:hover { background: #2a1e1e; }
-  main { padding: 22px 24px 60px; max-width: 1000px; margin: 0 auto; }
+  main { padding: 22px 24px 60px; max-width: 1280px; margin: 0 auto; }
   .view { display: none; }
   .view.active { display: block; }
 
@@ -36,6 +36,8 @@
   .card .desc { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
   .split { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
   .split > .card { flex: 1 1 360px; min-width: 300px; }
+  .cols { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .cols > .col { flex: 1 1 320px; min-width: 300px; display: flex; flex-direction: column; }
 
   .row2 { display: flex; gap: 20px; flex-wrap: wrap; }
   .uploader { width: 190px; flex: 0 0 auto; }
@@ -144,6 +146,8 @@
 <!-- ============ HOME ============ -->
 <section class="view active" id="homeView">
 
+  <div class="cols">
+  <div class="col">
   <div class="card">
     <h2>① 目標圖片與角色</h2>
     <p class="desc">上傳這次要生成的目標圖片作參考，並在右側填寫角色描述（會套用到所有咒語）。</p>
@@ -183,8 +187,9 @@
     <label class="lbl">類型（可複選）</label>
     <div class="chips" id="typeChips"></div>
   </div>
+  </div>
 
-  <div class="split">
+  <div class="col">
   <div class="card">
     <h2>③ 隨機抽貼圖文字</h2>
     <p class="desc">指定數目，隨機從所選類型抽出貼圖文字，附上以目前角色組合好的完整咒語。</p>
@@ -202,7 +207,9 @@
     </div>
     <div class="results" id="results"></div>
   </div>
+  </div>
 
+  <div class="col">
   <div class="card">
     <h2>④ 已選清單 <span class="meta" id="chosenCount" style="color:var(--muted);font-weight:400;font-size:13px"></span></h2>
     <p class="desc">從左側結果點「→」把要用的貼圖收集到這裡。清單會自動保存。</p>
@@ -214,6 +221,7 @@
     </div>
     <div class="results" id="chosen"></div>
     <div class="empty" id="chosenEmpty" style="padding:24px">尚未加入任何貼圖。</div>
+  </div>
   </div>
   </div>
 
