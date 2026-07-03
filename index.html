@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>貼圖文字生成器</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #181b22; --panel-2: #1f232c; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #8b93a3; --accent: #6ea8fe; --accent-2: #4f7fe0;
+    --green: #4ec98a; --red: #e06a6a; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+  header { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex;
+    align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; background: var(--panel); }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .nav { display: flex; gap: 6px; }
+  .nav button { background: transparent; border: 1px solid transparent; }
+  .nav button.active { background: var(--panel-2); border-color: var(--border); color: var(--text); }
+  button { font-family: inherit; font-size: 13px; padding: 7px 13px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    cursor: pointer; transition: background .12s, border-color .12s; }
+  button:hover { background: #262b35; }
+  button.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+  button.primary:hover { background: var(--accent); }
+  button.danger { color: var(--red); }
+  button.danger:hover { background: #2a1e1e; }
+  main { padding: 22px 24px 60px; max-width: 1000px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 4px; font-size: 15px; }
+  .card .desc { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+
+  .row2 { display: flex; gap: 20px; flex-wrap: wrap; }
+  .uploader { width: 190px; flex: 0 0 auto; }
+  .drop { border: 1.5px dashed var(--border); border-radius: 10px; height: 190px; display: flex;
+    align-items: center; justify-content: center; text-align: center; color: var(--muted);
+    cursor: pointer; overflow: hidden; background: var(--bg); font-size: 12.5px; padding: 8px; }
+  .drop:hover { border-color: var(--accent); }
+  .drop img { width: 100%; height: 100%; object-fit: contain; }
+  .upload-actions { margin-top: 8px; display: flex; gap: 6px; }
+  .upload-actions button { flex: 1; font-size: 12px; padding: 5px; }
+  .char-side { flex: 1; min-width: 240px; }
+
+  label.lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  label.lbl b { color: var(--accent); }
+  input[type=text], input[type=number], textarea, select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); font-family: inherit; font-size: 13px; resize: vertical; }
+  textarea { min-height: 46px; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  .field { margin-bottom: 14px; }
+  details.adv { margin-top: 12px; }
+  details.adv summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  details.adv .field { margin-top: 12px; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .chip { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--panel-2);
+    color: var(--muted); cursor: pointer; font-size: 12.5px; user-select: none; }
+  .chip:hover { color: var(--text); }
+  .chip.on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+  .chip .n { opacity: .6; margin-left: 4px; font-size: 11px; }
+
+  .pick-controls { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; }
+  .pick-controls .num { width: 90px; }
+  .results { margin-top: 16px; display: grid; gap: 10px; }
+  .rcard { border: 1px solid var(--border); border-radius: 9px; background: var(--bg); padding: 12px 14px; }
+  .rcard .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .rcard .txt { font-size: 16px; font-weight: 600; }
+  .rcard .meta { color: var(--muted); font-size: 12px; }
+  .rcard .tag { font-size: 11px; color: var(--accent); border: 1px solid var(--border); border-radius: 12px; padding: 1px 8px; }
+  .rcard .prompt { margin-top: 8px; font-size: 12px; color: #c7d2e6; word-break: break-word; display: none; }
+  .rcard.show-prompt .prompt { display: block; }
+  .rcard .acts { display: flex; gap: 6px; }
+  .rcard .acts button { padding: 4px 9px; font-size: 12px; }
+  .results-bar { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .results-bar .cnt { color: var(--muted); font-size: 12.5px; margin-right: auto; }
+
+  /* DB table */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .search { min-width: 200px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; padding: 9px 10px; font-size: 12px; font-weight: 600; color: var(--muted);
+    border-bottom: 1px solid var(--border); }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:hover { background: var(--panel); }
+  .col-id { width: 48px; color: var(--muted); }
+  .col-text { width: 120px; font-weight: 600; }
+  .col-type { width: 96px; }
+  .col-type .tag { font-size: 11px; color: var(--accent); border: 1px solid var(--border); border-radius: 12px; padding: 1px 7px; white-space: nowrap; }
+  .col-en { color: #c7d2e6; }
+  .col-zh { color: #d9c7c7; width: 24%; }
+  .col-actions { width: 150px; white-space: nowrap; text-align: right; }
+  .row-btn { padding: 4px 8px; font-size: 12px; border: none; background: transparent; color: var(--muted); }
+  .row-btn:hover { background: var(--panel-2); color: var(--text); }
+  .row-btn.copy:hover { color: var(--green); }
+  .row-btn.del:hover { color: var(--red); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; z-index: 100; }
+  .overlay.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    width: 100%; max-width: 640px; padding: 22px; }
+  .modal h2 { margin: 0 0 16px; font-size: 16px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .preview { margin-top: 14px; padding: 12px; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; }
+  .preview .lbl { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .preview .txt { font-size: 12.5px; color: #c7d2e6; word-break: break-word; }
+  .hint { font-size: 12px; color: var(--muted); margin: 4px 0 12px; }
+  .hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--accent); }
+  .delim-row { display: flex; gap: 14px; margin-bottom: 12px; font-size: 13px; align-items: center; }
+  .delim-row label { color: var(--text); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  mark { background: #4a3d16; color: #f0d878; padding: 0 1px; border-radius: 2px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--panel-2); border: 1px solid var(--border); padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 200; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎨 貼圖文字生成器</h1>
+  <div class="nav">
+    <button id="navHome" class="active" onclick="showView('home')">首頁</button>
+    <button id="navDb" onclick="showView('db')">資料庫 <span id="dbCount" style="opacity:.6"></span></button>
+  </div>
+</header>
+
+<main>
+<!-- ============ HOME ============ -->
+<section class="view active" id="homeView">
+
+  <div class="card">
+    <h2>① 目標圖片與角色</h2>
+    <p class="desc">上傳這次要生成的目標圖片作參考，並在右側填寫角色描述（會套用到所有咒語）。</p>
+    <div class="row2">
+      <div class="uploader">
+        <div class="drop" id="drop" onclick="document.getElementById('imgFile').click()">
+          <span id="dropHint">點此上傳<br>目標圖片</span>
+        </div>
+        <input type="file" id="imgFile" accept="image/*" style="display:none" onchange="onImg(event)">
+        <div class="upload-actions">
+          <button onclick="document.getElementById('imgFile').click()">選擇圖片</button>
+          <button onclick="clearImg()">清除</button>
+        </div>
+      </div>
+      <div class="char-side">
+        <div class="field">
+          <label class="lbl"><b>角色</b>（手動填寫，例：3D chubby cat character）</label>
+          <textarea id="tCharacter" style="min-height:70px"></textarea>
+          <p class="hint" style="margin-top:6px">💡 想自動辨識？把上傳的圖片丟到對話中給我，我會回傳可直接貼上的角色描述。</p>
+        </div>
+        <details class="adv">
+          <summary>進階：共用風格 / 負面詞</summary>
+          <div class="field"><label class="lbl">共用風格 / 構圖 / 背景</label><textarea id="tStyle"></textarea></div>
+          <div class="field"><label class="lbl">負面詞 + 比例（--no ... --ar）</label><textarea id="tNegative"></textarea></div>
+          <button onclick="resetTemplate()">還原預設（金魚）</button>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>② 選擇貼圖類型</h2>
+    <p class="desc">選一個類型（或全部），下方隨機抽取會從這個範圍挑。</p>
+    <div class="chips" id="typeChips"></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 隨機抽貼圖文字</h2>
+    <p class="desc">指定數目，隨機從所選類型抽出貼圖文字，附上以目前角色組合好的完整咒語。</p>
+    <div class="pick-controls">
+      <div class="num"><label class="lbl">數目</label><input type="number" id="pickN" min="1" value="5"></div>
+      <button class="primary" onclick="doPick(true)" title="從整個類型重新隨機抽（可能會重複到上次的）">🎲 隨機抽取</button>
+      <button onclick="doPick(false)" title="避開本輪已抽過的，換一批沒看過的；整個類型抽完才重來">🔄 換一批沒看過的</button>
+    </div>
+    <div class="results-bar" id="resultsBar" style="display:none">
+      <span class="cnt" id="pickCnt"></span>
+      <button onclick="toggleAllPrompts()" id="togglePromptsBtn">顯示完整咒語</button>
+      <button onclick="copyAllTexts()">複製全部文字</button>
+      <button onclick="copyAllPrompts()">複製全部咒語</button>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+
+</section>
+
+<!-- ============ DB ============ -->
+<section class="view" id="dbView">
+  <div class="toolbar">
+    <input type="text" class="search" id="search" placeholder="搜尋 文字 / 動作 / 類型…">
+    <button class="primary" onclick="openEdit()">＋ 新增</button>
+    <button onclick="openImport()">批次匯入</button>
+    <button onclick="exportCSV()">匯出 CSV</button>
+    <button onclick="document.getElementById('csvFile').click()">匯入 CSV</button>
+    <button class="danger" onclick="clearAll()">清空</button>
+    <input type="file" id="csvFile" accept=".csv,.txt" style="display:none" onchange="importCSVFile(event)">
+  </div>
+  <div id="stats" class="hint"></div>
+  <table>
+    <thead><tr>
+      <th class="col-id">編號</th><th class="col-text">貼圖文字</th><th class="col-type">類型</th>
+      <th class="col-en">動作 (English)</th><th class="col-zh">動作 (中文)</th><th class="col-actions"></th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">還沒有資料。點「＋ 新增」或「批次匯入」。</div>
+</section>
+</main>
+
+<!-- Edit modal -->
+<div class="overlay" id="editOverlay"><div class="modal">
+  <h2 id="editTitle">新增貼圖</h2>
+  <input type="hidden" id="editIndex">
+  <div class="field"><label class="lbl">編號</label><input type="text" id="fId" placeholder="留空則自動編號"></div>
+  <div class="field"><label class="lbl">貼圖文字</label><input type="text" id="fText" placeholder="例：早安"></div>
+  <div class="field"><label class="lbl">類型</label><select id="fType"></select></div>
+  <div class="field"><label class="lbl">動作 / 場景 (English)</label><textarea id="fEn" placeholder="只寫這張的動作…"></textarea></div>
+  <div class="field"><label class="lbl">動作 / 場景 (中文)</label><textarea id="fZh"></textarea></div>
+  <div class="preview"><div class="lbl">完整咒語預覽</div><div class="txt" id="editPreview"></div></div>
+  <div class="modal-actions" style="margin-top:16px">
+    <button onclick="closeEdit()">取消</button><button class="primary" onclick="saveEdit()">儲存</button>
+  </div>
+</div></div>
+
+<!-- Import modal -->
+<div class="overlay" id="importOverlay"><div class="modal">
+  <h2>批次匯入</h2>
+  <p class="hint">每行一筆：<code>編號 &nbsp; 貼圖文字 &nbsp; 類型 &nbsp; 動作(英) &nbsp; 動作(中)</code>。編號、類型可留空。</p>
+  <div class="delim-row"><span style="color:var(--muted)">分隔符號：</span>
+    <label><input type="radio" name="delim" value="tab" checked> Tab</label>
+    <label><input type="radio" name="delim" value="pipe"> 直線 |</label>
+    <label><input type="radio" name="delim" value="comma"> 逗號 ,</label>
+  </div>
+  <div class="field"><textarea id="importText" style="min-height:200px" placeholder="1|早安|日常問候|Waving fin cheerfully|開心揮鰭道早安"></textarea></div>
+  <p class="hint" id="importPreview"></p>
+  <div class="modal-actions"><button onclick="closeImport()">取消</button><button class="primary" onclick="doImport()">匯入</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORE_KEY = 'sticker_db_v5';
+const TMPL_KEY = 'sticker_template_v1';
+const SEED = [{"id": "1", "text": "你好", "poseEn": "Goldfish face shooting up from bottom, zooming speed lines, face skin pulled back by speed, happy screaming mouth, high energy", "poseZh": "金魚臉部從畫面底部向上衝出，伴隨速度線，臉皮因速度感向後拉扯，嘴巴大笑。", "type": "日常問候"}, {"id": "2", "text": "晚安囉", "poseEn": "Sleeping face close-up, blowing a giant snot bubble larger than head, chubby cheeks squished together, soft lighting", "poseZh": "睡覺的大頭特寫，鼻孔吹著一個比頭還大的巨大鼻涕泡泡，臉頰肉擠在一起。", "type": "日常問候"}, {"id": "3", "text": "好的！", "poseEn": "Standing at attention, raising right pectoral fin to brow like a salute, chest puffed out, sparkling starry eyes, big enthusiastic smile, high energy", "poseZh": "充滿活力的動態特寫，像軍人一樣挺胸敬禮，將右鰭高高舉到眉毛旁，笑容燦爛，眼睛裡有星星。", "type": "反應互動"}, {"id": "4", "text": "感謝", "poseEn": "Face pressed flat against the floor, cheeks squished and distorted, fountain tears shooting up, pectoral fins clasped in gratitude", "poseZh": "臉部直接壓扁在地面上，臉頰變形，眼淚像噴泉一樣向上噴出，雙鰭合十。", "type": "日常問候"}, {"id": "5", "text": "飄走", "poseEn": "Back of head view, hiding in the extreme corner of the frame, round smooth body, small rain cloud above head, gloomy", "poseZh": "躲在畫面最角落的背影，只露出圓圓的後腦勺，頭上有一朵下雨的小烏雲。", "type": "情緒表達"}, {"id": "6", "text": "先不要", "poseEn": "Face recoiling backwards creating triple chins, pectoral fins crossing frantically to make \"X\" sign, wide eyes filled with fear, wobbling cheeks, extreme refusal", "poseZh": "正面特寫，頭部極力向後仰，擠出三層下巴，兩片短鰭在臉前慌張地交叉成X，眼神充滿恐懼與拒絕。", "type": "反應互動"}, {"id": "7", "text": "真的假的？！", "poseEn": "Extreme fisheye close-up, eyes popping out of sockets floating in air, jaw dropping to the floor, elastic face distortion, shock", "poseZh": "眼球嚇到凸出眼眶懸在半空中，下巴掉下來拉得超長，極度誇張的驚嚇。", "type": "反應互動"}, {"id": "8", "text": "拜託", "poseEn": "High angle shot looking down, giant watery puppy eyes taking up most of the face, pectoral fins tucked under chin, begging", "poseZh": "由上往下拍大頭，眼睛佔據臉的大半部分，水汪汪大眼，兩鰭在下巴處縮著。", "type": "反應互動"}, {"id": "9", "text": "棒棒噠", "poseEn": "Clapping pectoral fins, happy face with wobbling chubby cheeks, motion lines, sparkles, enthusiastic", "poseZh": "快速拍打胸鰭，因為用力導致臉頰肉跟著震動，背景有動漫風格的集中線。", "type": "反應互動"}, {"id": "10", "text": "游走囉~", "poseEn": "Close-up focus on round smooth goldfish butt, one small fin waving goodbye from behind, soft tail swishing", "poseZh": "圓潤光滑的屁股特寫，和一隻向後揮的小鰭，尾巴輕輕擺動。", "type": "日常問候"}, {"id": "11", "text": "金魚腦發作", "poseEn": "Top of head open like a lid, black smoke coming out, spiral dizzy eyes, tongue hanging out loosely, system crash", "poseZh": "頭頂像蓋子一樣掀開，冒出黑煙，眼睛變成蚊香螺旋眼，舌頭掛在嘴邊。", "type": "金魚腦呆萌"}, {"id": "12", "text": "我是誰？", "poseEn": "Floating upside down, blank plastic stare, mouth slightly open, empty minded, no soul in eyes, confused", "poseZh": "倒著漂浮，臉部表情呆滯像塑膠玩具，嘴巴微張，眼神空洞無靈魂。", "type": "金魚腦呆萌"}, {"id": "13", "text": "記憶只有七秒", "poseEn": "Split screen composition: Left side laughing hysterically, Right side suddenly blank and confused (monochrome sketch style), buffering symbol on forehead, sudden amnesia", "poseZh": "左右分割畫面：左邊是誇張大笑（鮮豔橘色），右邊瞬間變成腦袋當機的呆滯臉（黑白線條），強烈對比。", "type": "金魚腦呆萌"}, {"id": "14", "text": "剛說什麼？", "poseEn": "Side profile, using fin to push cheek back to hear better, squinting eyes, exaggerated curious face, say what?", "poseZh": "側臉，用鰭把臉頰肉往後推（假裝聽聲音），眼睛瞇成一條線。", "type": "金魚腦呆萌"}, {"id": "15", "text": "發呆中...", "poseEn": "Front face close-up, blank stare, long string of drool, single grass growing on top of head, completely zoned out", "poseZh": "眼神完全放空，嘴角流下一條長長的口水，頭頂長出一根孤單的小草。", "type": "金魚腦呆萌"}, {"id": "16", "text": "餓了...", "poseEn": "Face smashed hard against glass lens, nose and lips flattened, cheeks spilling out sideways, intense hungry stare", "poseZh": "整張臉用力貼在鏡頭上，鼻子和嘴唇被壓平，臉頰肉向外溢出，眼神飢渴。", "type": "吃貨身材"}, {"id": "17", "text": "放飯了嗎？", "poseEn": "Extreme macro shot of wide open mouth, seeing down the throat, waiting for food, fish lips perspective", "poseZh": "鏡頭前只有一張張得超級大的魚嘴巴，深喉嚨視角，迫切等待食物。", "type": "吃貨身材"}, {"id": "18", "text": "只是有點豐滿", "poseEn": "Focus on belly and chin, trying to suck in stomach but soft fat spilling over fins, chubby round shape", "poseZh": "鏡頭拍肚子和下巴，試圖縮小腹，結果肥肉從鰭的邊緣溢出來。", "type": "吃貨身材"}, {"id": "19", "text": "拒絕面對體重", "poseEn": "Pectoral fins tightly covering eyes, mouth pressed into a wavy line, nervous sweat drop, fear of looking", "poseZh": "兩片鰭緊緊蓋住眼睛，嘴巴抿成波浪狀，流下一滴冷汗。", "type": "吃貨身材"}, {"id": "20", "text": "啵啵啵", "poseEn": "Lips puckered into a perfect circle, blowing shiny glass-like bubbles, cute kissing face, translucent water effects", "poseZh": "嘴巴嘟成圓形，吐出好幾個像玻璃珠一樣亮晶晶的氣泡，透亮感。", "type": "情緒表達"}, {"id": "21", "text": "開心", "poseEn": "Pushing both cheeks inward with pectoral fins, squishing face into a round ball, eyes smiling shut, floating pink bubbles and hearts, pure happiness", "poseZh": "兩片鰭用力將臉頰肉往中間擠，把嘴巴擠成嘟嘟嘴，眼睛笑成彎月，周圍飄滿粉紅色的愛心與氣泡。", "type": "情緒表達"}, {"id": "22", "text": "氣噗噗！", "poseEn": "Body puffed up like a round balloon, entire body turning bright angry red due to rage, flushing skin, steam shooting from ears/mouth, about to explode", "poseZh": "身體像氣球一樣充氣漲大，全身變成鮮紅色，耳朵噴出蒸氣，快爆炸的樣子。", "type": "情緒表達"}, {"id": "23", "text": "淚流滿面", "poseEn": "Head tilted back crying, thick waterfall tears flowing out of frame, mouth wide open wailing, dramatic sadness", "poseZh": "仰頭嚎啕大哭，眼淚像兩條寬寬的瀑布衝出畫面，嘴巴張大到極限。", "type": "情緒表達"}, {"id": "24", "text": "嚇到吃手手", "poseEn": "Scales turning pale blue ghost white from terror, biting deep on own pectoral fin, eyes vibrating, pupils shrunk to tiny dots, sweat drops, shock lines", "poseZh": "(變色：慘藍白) 驚恐特寫，把胸鰭深深塞進嘴巴裡咬著，眼球震動，全身嚇得退色變成慘白的藍色。", "type": "情緒表達"}, {"id": "25", "text": "累到翻肚", "poseEn": "Floating upside down belly up, eyes shaped like \"X\", mouth open, a small translucent ghost soul escaping from mouth, exhausted, knocked out", "poseZh": "畫面上下顛倒（肚皮朝上），眼睛變成「X」型，嘴巴張開吐出一縷半透明的靈魂，無力地漂浮著。", "type": "耍廢厭世"}, {"id": "26", "text": "壓力山大", "poseEn": "Head flattened by heavy weight, face squashed wide horizontally, eyes popping out sideways, like a flattened mochi", "poseZh": "頭頂被畫面邊緣壓扁，整張臉橫向變寬，眼睛被擠出來，像被壓扁的麻糬。", "type": "耍廢厭世"}, {"id": "27", "text": "眼神死", "poseEn": "Macro shot of eyes only, half-closed eyelids, heavy dark circles, dead dull eyes, looking down with disdain", "poseZh": "只有眼睛部位的微距特寫，上眼皮半垂，黑眼圈，眼神毫無光澤，充滿鄙視。", "type": "耍廢厭世"}, {"id": "28", "text": "", "poseEn": "Head tilted 90 degrees sideways, extremely puzzled face, giant question mark above head, confused twist", "poseZh": "頭歪到90度，幾乎要扭斷的角度，頭上頂著巨大的問號，一臉困惑。", "type": "金魚腦呆萌"}, {"id": "29", "text": "在線等", "poseEn": "Chin resting heavily on bottom edge of frame, cheeks sagging down, bored dead stare, waiting forever", "poseZh": "下巴沉重地掛在畫面下緣，臉頰肉垂下來，死魚眼盯著前方，完全不動。", "type": "耍廢厭世"}, {"id": "30", "text": "求關注", "poseEn": "Forehead bumping into camera lens, filling the entire frame, looking up with big eyes, intrusive cute face", "poseZh": "額頭直接撞上鏡頭，把畫面塞滿，眼睛由下往上看，鼻子貼在鏡頭上。", "type": "反應互動"}, {"id": "31", "text": "摸魚中", "poseEn": "Wearing huge sunglasses, biting a straw, relaxed cool smile, vacation vibe headshot, chilling", "poseZh": "戴著超大墨鏡的臉部特寫，嘴角咬著吸管，表情極度放鬆，看不見眼睛。", "type": "耍廢厭世"}, {"id": "32", "text": "愚蠢的人類", "poseEn": "Low angle shot looking up at chin and nostrils, arrogant expression, looking down on viewer, royal attitude", "poseZh": "極低視角（由下往上拍），只看到金魚的下巴和兩個大鼻孔，眼神高傲。", "type": "財富炫耀"}, {"id": "33", "text": "年年有餘", "poseEn": "Rubbing cheek affectionately against a gold ingot, face squished against gold, greedy happy smile, prosperity", "poseZh": "臉頰用力蹭著一個巨大的金元寶，把臉都蹭變形了，表情貪財。", "type": "財富炫耀"}, {"id": "34", "text": "財富自由", "poseEn": "Head buried in a pile of gold coins, laughing maniacally, coins raining down on head, wealthy expression", "poseZh": "頭被埋在無數的金幣堆裡，只露出一顆頭大笑，金幣從頭上淋下來。", "type": "財富炫耀"}, {"id": "35", "text": "", "poseEn": "Sea of raised pectoral fins at bottom of frame, one fin holding a \"+1\" sign, crowd perspective, joining in", "poseZh": "畫面下方是無數隻舉起的胸鰭（像演唱會人海），其中一隻拿著「+1」牌子。", "type": "反應互動"}, {"id": "36", "text": "已讀不回", "poseEn": "Back of head view, turning slightly to look over shoulder, heavy side-eye glare, dead inside expression, scales turning slightly cold bluish-grey tint, ignoring, dark mood lighting", "poseZh": "(變色：冷灰調) 只有背影和回頭的側臉，眼神呈現死魚眼斜視，畫面色調變暗變冷，彷彿空氣凝結。", "type": "耍廢厭世"}, {"id": "37", "text": "不想努力了", "poseEn": "Hanging upside down by tail clip, pale desaturated orange color like dried fish, gravity effect on face: cheeks sagging heavily towards top of head, limp body, gave up on life", "poseZh": "(變色：魚乾色) 尾巴被曬衣夾夾住倒吊，全身變成乾癟的淺橘色，臉頰肉因為重力全部垂向頭頂，眼神失去靈魂。", "type": "耍廢厭世"}, {"id": "38", "text": "腦容量不足", "poseEn": "Inside view of open head, completely empty space inside, one single peanut rolling, visual pun for dumb", "poseZh": "頭頂切開視角，往裡面看是空心的，只有一顆乾癟的花生米滾來滾去。", "type": "金魚腦呆萌"}, {"id": "39", "text": "已登出", "poseEn": "Body completely turned into grey stone texture, no orange color remaining, colorful translucent ghost soul head floating out of frame top", "poseZh": "身體完全變成灰色石像材質，失去顏色，彩色的半透明靈魂從頭頂飄走。", "type": "耍廢厭世"}, {"id": "40", "text": "閃瞎你的眼", "poseEn": "Wearing too many pearl necklaces, face squeezed by jewelry, sparkling gold and gems, extremely luxurious and tacky", "poseZh": "脖子（鰓邊）掛滿超多串珍珠項鍊，把臉都擠歪了，閃閃發亮。", "type": "財富炫耀"}, {"id": "41", "text": "是喔", "poseEn": "Extreme macro shot focusing on the snout area.  The simple small black dot eyes are half-closed and rolled upwards in ultimate boredom and indifference", "poseZh": "鼻頭部位的極致微距特寫，小小的黑點眼睛半睜、往上翻，充滿無聊與不屑。", "type": "敷衍冷淡"}, {"id": "42", "text": "閱", "poseEn": "Wearing small reading glasses on nose, glancing down momentarily as if reading, then immediately looking up and away with a bored sniff, dismissive action", "poseZh": "鼻上架著小小的老花眼鏡，短暫低頭像在閱讀，隨即抬眼撇開、冷哼一聲，一副敷衍打發的樣子。", "type": "敷衍冷淡"}, {"id": "43", "text": "呵呵", "poseEn": "Dry fake smile, corners of mouth twitching upwards mechanically, but eyes remain completely dead and not smiling, staring straight ahead creepily", "poseZh": "乾笑，嘴角機械式地上揚抽動，但眼神完全死寂沒在笑，直勾勾盯著前方，透著詭異。", "type": "嘲諷酸人"}, {"id": "44", "text": "還有嗎？", "poseEn": "Yawning widely showing throat, tears in eyes from extreme boredom, tapping one fin impatiently on the imaginary table, looking exhausted by the conversation", "poseZh": "張大嘴打哈欠露出喉嚨，無聊到眼角泛淚，一鰭不耐煩地敲著桌面，被對話累到不行。", "type": "敷衍冷淡"}, {"id": "45", "text": "已讀", "poseEn": "Physically turning its back to the camera, looking over its shoulder with a cold glare of acknowledgment, then deliberately closing eyes and turning head away completely to ignore", "poseZh": "直接把背對著鏡頭，回頭以冷淡的眼神瞥一眼表示看到了，接著刻意閉眼、把頭完全轉開無視。", "type": "敷衍冷淡"}, {"id": "46", "text": "你開心就好", "poseEn": "Shrugging fins helplessly in a \"whatever\" gesture, forced polite smile that doesn't reach eyes, giving up on arguing, condescending yield", "poseZh": "兩鰭無奈聳肩擺出「隨便你」的手勢，擠出到不了眼底的假笑，放棄爭辯，居高臨下地讓步。", "type": "敷衍冷淡"}, {"id": "47", "text": "慢走不送", "poseEn": "Waving one fin dismissively towards the edge of the frame (telling someone to leave), while actively cleaning its ear (gill) with the other fin, showing disrespect", "poseZh": "一鰭朝畫面邊緣揮手趕人走，另一鰭同時在掏耳朵（鰓），滿滿的不尊重。", "type": "敷衍冷淡"}, {"id": "48", "text": "真的假的", "poseEn": "Exaggerated fake surprise face, mouth wide open in a perfect \"O\" shape but eyes are half-closed and bored, obviously pretending to be shocked, performative sarcasm", "poseZh": "誇張的假驚訝臉，嘴巴張成完美的「O」型，但眼睛半闔一臉無聊，明顯在裝驚訝，表演式反諷。", "type": "嘲諷酸人"}, {"id": "49", "text": "聽你鬼扯", "poseEn": "Using tips of both fins to firmly plug its \"ears\" (gills area), squeezing eyes shut, shaking head rapidly to refuse listening, childish denial", "poseZh": "用兩片鰭尖用力塞住耳朵（鰓的位置），緊閉雙眼、猛烈搖頭拒絕聆聽，孩子氣的否認。", "type": "嗆聲嘴砲"}, {"id": "50", "text": "喔", "poseEn": "The blankest face possible, mouth is just a simple flat horizontal line, eyes half-closed and glazed over, absolute zero interest or energy reaction", "poseZh": "擺出最空白的表情，嘴巴只是一條平平的橫線，眼睛半睜、失焦呆滯，毫無興趣與反應。", "type": "敷衍冷淡"}, {"id": "51", "text": "可憐哪", "poseEn": "Looking down at the camera from a high angle (superiority perspective), squinting eyes with an arrogant smirk, slowly shaking head in pity", "poseZh": "從高角度俯視鏡頭（優越視角），瞇眼帶著傲慢的冷笑，緩緩搖頭表示同情。", "type": "嘲諷酸人"}, {"id": "52", "text": "確？", "poseEn": "Extreme close-up focusing on one highly skeptical eye, raising the area where an eyebrow would be very high, tilting head aggressively in doubt", "poseZh": "對準一隻超級懷疑的眼睛做極致特寫，把眉毛的位置高高挑起，頭帶著攻擊性地歪向一邊表示質疑。", "type": "嘲諷酸人"}, {"id": "53", "text": "腦子呢？", "poseEn": "Using a fin to knock on its own head, listening for a hollow sound, then shrugging with a confused expression, gesturing \"it's empty\"", "poseZh": "用鰭敲敲自己的頭，聆聽是否有空心的迴響，接著困惑地聳肩，比出「裡面是空的」。", "type": "嘲諷酸人"}, {"id": "54", "text": "急了？", "poseEn": "Smug trolling smile, pointing one fin directly at the camera, mischievous eyes, enjoying the other person's anger, provoking gesture", "poseZh": "得意的欠揍笑容，一鰭直直指向鏡頭，眼神調皮，享受著對方的惱怒，滿滿的挑釁。", "type": "嘲諷酸人"}, {"id": "55", "text": "笑死", "poseEn": "Rolling on the floor laughing (ROFL), slapping the floor repeatedly with fins, tears squeezing out of eyes from intense exaggerated laughter", "poseZh": "笑到在地上打滾，用鰭不停拍打地板，因為誇張大笑而擠出眼淚。", "type": "嘲諷酸人"}, {"id": "56", "text": "就這？", "poseEn": "Looking down at something microscopic and invisible between its fins, squinting hard to see it, then giving a disappointed unimpressed look at camera", "poseZh": "低頭盯著鰭間某個渺小到看不見的東西，用力瞇眼想看清，然後對鏡頭露出失望又不屑的表情。", "type": "嘲諷酸人"}, {"id": "57", "text": "供三小", "poseEn": "Angry gangster face, chin jutting out aggressively, fins spread wide in a \"Wanna fight?\" posture, challenging the viewer", "poseZh": "憤怒的流氓臉，下巴挑釁地向前突出，兩鰭大張擺出「想打架？」的姿態，向觀眾叫囂。", "type": "嗆聲嘴砲"}, {"id": "58", "text": "好了啦", "poseEn": "Holding up one fin flat towards the camera in a firm \"Stop\" gesture, closing eyes in pain/cringe, turning head away to refuse more input", "poseZh": "一鰭平舉向鏡頭比出堅定的「停」手勢，痛苦地閉眼、別過頭去，拒絕再聽下去。", "type": "敷衍冷淡"}, {"id": "59", "text": "像極了愛情", "poseEn": "Holding a single red rose in its mouth, looking dreamy with soft focus eyes, but with a clear sarcastic smirk, mocking romance", "poseZh": "嘴裡叼著一朵紅玫瑰，眼神朦朧夢幻，但嘴角帶著明顯的諷刺冷笑，嘲弄愛情。", "type": "情緒表達"}, {"id": "60", "text": "你的問題", "poseEn": "Pointing a fin sharply and directly at the camera (viewer), accusing expression, stern judging eyes, shifting all blame to the viewer", "poseZh": "一鰭尖銳地直指鏡頭（觀眾），一臉指責，嚴厲審視的眼神，把所有錯都推到觀眾身上。", "type": "嗆聲嘴砲"}, {"id": "61", "text": "撿到槍", "poseEn": "Holding two toy water guns with fins, striking an aggressive Rambo action pose, determined angry expression, ready to fire water", "poseZh": "雙鰭各拿一把玩具水槍，擺出藍波式的火爆動作姿勢，一臉憤怒堅決，準備開火噴水。", "type": "嗆聲嘴砲"}, {"id": "62", "text": "邏輯鬼才", "poseEn": "Wildly gesturing with fins in complex patterns as if explaining a crazy theory, eyes spinning in confusion, looking like a mad scientist", "poseZh": "兩鰭瘋狂比劃著複雜的手勢，像在講解某個瘋狂理論，眼睛困惑地打轉，活像個瘋狂科學家。", "type": "嘲諷酸人"}, {"id": "63", "text": "玻璃心碎", "poseEn": "The goldfish's chest area is visibly cracking like fragile glass, with shards falling off, dramatic painful crying expression, extremely fragile", "poseZh": "金魚的胸口像脆弱的玻璃一樣明顯龜裂，碎片剝落，戲劇化的痛哭表情，極度脆弱。", "type": "情緒表達"}, {"id": "64", "text": "厲害了", "poseEn": "Giving a very slow, sarcastic thumbs-up gesture with one fin, while maintaining a completely deadpan, unimpressed facial expression", "poseZh": "用一鰭比出超級緩慢又諷刺的讚，臉上卻維持著全然面癱、毫不佩服的表情。", "type": "嘲諷酸人"}, {"id": "65", "text": "繼續編", "poseEn": "Leaning back comfortably, eating popcorn with fins, staring intently at the camera with an amused smirk, waiting for more lies", "poseZh": "舒服地向後靠著，用鰭吃著爆米花，饒有興味地盯著鏡頭壞笑，等著看你繼續掰下去。", "type": "嘲諷酸人"}, {"id": "66", "text": "加油好嗎", "poseEn": "Patronizing smile, tilting head to side, holding a small cheerleading pom-pom lazily and weakly, fake encouragement vibe", "poseZh": "一副高高在上的假笑，歪著頭，懶洋洋又無力地舉著小啦啦隊彩球，滿是敷衍的鼓勵感。", "type": "嘲諷酸人"}, {"id": "67", "text": "沒救了", "poseEn": "Lying flat on its back, floating belly up (playing dead), fins crossed over chest like a corpse, completely giving up, hopeless", "poseZh": "四腳朝天躺平、肚皮朝上裝死，雙鰭像屍體一樣交疊在胸前，完全放棄、毫無希望。", "type": "耍廢厭世"}, {"id": "68", "text": "刷新三觀", "poseEn": "Eyes physically popping out of head on stalks in cartoon style shock, jaw dropping to the floor, stunned by stupidity expression", "poseZh": "眼球以卡通方式彈出、掛在眼柄上表示震驚，下巴掉到地上，被蠢到目瞪口呆。", "type": "反應互動"}, {"id": "69", "text": "巨嬰", "poseEn": "Wearing a baby bib and a pacifier in mouth, crying loudly and throwing a tantrum, kicking fins like a baby, mocking immature behavior", "poseZh": "圍著圍兜、嘴裡叼著奶嘴，放聲大哭耍賴，像嬰兒一樣踢著鰭，嘲諷幼稚的行為。", "type": "嘲諷酸人"}, {"id": "70", "text": "情緒勒索", "poseEn": "Making giant, watery puppy eyes at the camera, begging pose with fins, but with a subtle, sinister manipulative smile hidden", "poseZh": "對鏡頭擠出水汪汪的無辜大眼，兩鰭做出乞求的姿勢，卻藏著一絲陰險的操縱笑容。", "type": "反應互動"}, {"id": "71", "text": "夢裡什麼都有", "poseEn": "Sleeping peacefully, drooling, with a blissful smile, acting out a beautiful dream, implying reality is doomed, keep dreaming", "poseZh": "安詳地睡著、流著口水，帶著幸福的微笑，演出一場美夢，暗示現實無望，繼續做夢吧。", "type": "嘲諷酸人"}, {"id": "72", "text": "洗洗睡", "poseEn": "Wearing a shower cap, actively splashing water onto its own face with fins to wake up, dismissive \"go to bed\" action", "poseZh": "戴著浴帽，用鰭往自己臉上潑水想清醒一下，比出「快去睡覺」的敷衍動作。", "type": "敷衍冷淡"}, {"id": "73", "text": "下去", "poseEn": "Pointing one fin sharply and aggressively downwards toward the bottom of the frame, stern referee expression, gesturing \"get out\"", "poseZh": "一鰭尖銳又強硬地指向畫面下方，一臉裁判般的嚴厲，比出「給我出去」。", "type": "嗆聲嘴砲"}, {"id": "74", "text": "別鬧了", "poseEn": "Facepalming (fin-palming) hard, covering eyes with one fin, looking exhausted and done with the nonsense, \"Please stop\" vibe", "poseZh": "用鰭用力扶額摀臉，一鰭遮住眼睛，一臉疲憊、受夠了這些鬧劇，滿滿「拜託停下」的氛圍。", "type": "敷衍冷淡"}, {"id": "75", "text": "我看你是不用睡了", "poseEn": "Holding a baseball bat aggressively with fins, menacing smile with shadow over eyes, threatening aura, \"You are in trouble\" vibe", "poseZh": "兩鰭凶狠地握著一根球棒，陰影壓住眼睛的猙獰笑容，散發威脅氣場，「你完蛋了」的既視感。", "type": "嗆聲嘴砲"}, {"id": "76", "text": "很有事", "poseEn": "Body leaning backwards away from the lens in extreme recoil and disgust, creating a chubby double chin squish effect on the neck. Pectoral fins are pushed forward in a defensive \"stay away\" gesture. Simple small black dot eyes are staring with a look of pure judgment, as if looking at a weirdo", "poseZh": "身體極力向後仰、遠離鏡頭表示嫌惡，脖子擠出胖胖的雙下巴，兩鰭向前推出防禦性的「離我遠點」手勢，小黑點眼睛滿是評判，像在看一個怪咖。", "type": "嘲諷酸人"}, {"id": "77", "text": "天才", "poseEn": "Slowly clapping fins with a completely deadpan, unimpressed face, looking at the camera, mocking someone's stupid idea sarcastically", "poseZh": "面癱、毫不佩服地緩慢拍鰭，看著鏡頭，諷刺地嘲笑某人的蠢點子。", "type": "嘲諷酸人"}, {"id": "78", "text": "輸不起", "poseEn": "Flipping a board game table over in rage, game pieces flying, crying baby face, red face from anger, being a sore loser", "poseZh": "暴怒地掀翻桌上的桌遊，棋子飛得到處都是，一張大哭的嬰兒臉，氣到滿臉通紅，輸不起的爛賭鬼。", "type": "嗆聲嘴砲"}, {"id": "79", "text": "慢半拍", "poseEn": "Frozen with a blank, lagging expression, one eye looking left, one eye looking right, drooling slowly, brain completely frozen and buffering", "poseZh": "帶著空白、延遲的表情僵住，一眼看左、一眼看右，緩緩流著口水，腦袋完全當機轉圈圈。", "type": "金魚腦呆萌"}, {"id": "80", "text": "狀況外", "poseEn": "Wearing large headphones, dancing happily with eyes closed, completely oblivious to the chaotic disaster happening in the background", "poseZh": "戴著大耳機、閉著眼開心跳舞，對背景正在發生的一片混亂災難渾然不覺。", "type": "金魚腦呆萌"}];
+const TYPES = ["日常問候", "情緒表達", "反應互動", "金魚腦呆萌", "吃貨身材", "耍廢厭世", "財富炫耀", "敷衍冷淡", "嘲諷酸人", "嗆聲嘴砲"];
+const DEFAULT_TMPL = {"character": "3D chubby goldfish character", "style": "upper body close-up, face filling the frame, soft and squishy texture, elastic facial features, blind box toy style, clean white background", "negative": "--no muscles, no bodybuilding, no human anatomy, no hands, no legs, no feet, no fingers, no arms, no veins, no realistic texture, no environmental reflections on skin, no text, no words --ar 1:1"};
+// previous default negative (pre "no text, no words") — used to auto-upgrade saved templates
+const OLD_NEG = "--no muscles, no bodybuilding, no human anatomy, no hands, no legs, no feet, no fingers, no arms, no veins, no realistic texture, no environmental reflections on skin --ar 1:1";
+
+let data = load();
+let T = loadTemplate();
+let query = '';
+let selectedType = '全部';
+let lastPick = [];
+let drawnIds = new Set();   // ids already shown this round (for 換一批沒看過的)
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw === null) { localStorage.setItem(STORE_KEY, JSON.stringify(SEED)); return SEED.slice(); }
+    return JSON.parse(raw) || [];
+  } catch { return SEED.slice(); }
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(data)); renderDb(); renderTypeChips(); }
+function loadTemplate() {
+  let t;
+  try { t = Object.assign({}, DEFAULT_TMPL, JSON.parse(localStorage.getItem(TMPL_KEY)) || {}); }
+  catch { t = Object.assign({}, DEFAULT_TMPL); }
+  if ((t.negative || '').trim() === OLD_NEG) {   // upgrade old negative to new default (keeps character/style)
+    t.negative = DEFAULT_TMPL.negative;
+    localStorage.setItem(TMPL_KEY, JSON.stringify(t));
+  }
+  return t;
+}
+function saveTemplate() { localStorage.setItem(TMPL_KEY, JSON.stringify(T)); }
+function composeEn(pose) {
+  const parts = [T.character, T.style, pose].map(s => (s || '').trim()).filter(Boolean);
+  let s = parts.join(', ');
+  if (T.negative && T.negative.trim()) s += ' ' + T.negative.trim();
+  return s;
+}
+function allTypes() {
+  const set = new Set(TYPES);
+  data.forEach(d => { if (d.type) set.add(d.type); });
+  return [...set];
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function nextId() {
+  const nums = data.map(d => parseInt(d.id, 10)).filter(n => !isNaN(n));
+  return nums.length ? Math.max(...nums) + 1 : 1;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function highlight(s) {
+  s = esc(s); if (!query) return s;
+  try { const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'); return s.replace(re, '<mark>$1</mark>'); }
+  catch { return s; }
+}
+async function copyText(t, msg) {
+  try { await navigator.clipboard.writeText(t); toast(msg || '已複製'); }
+  catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast(msg || '已複製'); }
+}
+
+/* ---- view switch ---- */
+function showView(v) {
+  document.getElementById('homeView').classList.toggle('active', v === 'home');
+  document.getElementById('dbView').classList.toggle('active', v === 'db');
+  document.getElementById('navHome').classList.toggle('active', v === 'home');
+  document.getElementById('navDb').classList.toggle('active', v === 'db');
+}
+
+/* ---- template fields ---- */
+function syncTemplateFields() {
+  document.getElementById('tCharacter').value = T.character || '';
+  document.getElementById('tStyle').value = T.style || '';
+  document.getElementById('tNegative').value = T.negative || '';
+}
+['tCharacter','tStyle','tNegative'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    T.character = document.getElementById('tCharacter').value;
+    T.style = document.getElementById('tStyle').value;
+    T.negative = document.getElementById('tNegative').value;
+    saveTemplate();
+    if (lastPick.length) renderResults();  // keep prompts in sync
+  });
+});
+function resetTemplate() {
+  if (!confirm('還原成預設金魚範本？')) return;
+  T = Object.assign({}, DEFAULT_TMPL); saveTemplate(); syncTemplateFields();
+  if (lastPick.length) renderResults(); toast('已還原預設範本');
+}
+
+/* ---- image upload (preview only) ---- */
+function onImg(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { document.getElementById('drop').innerHTML = '<img src="' + r.result + '">'; };
+  r.readAsDataURL(f); e.target.value = '';
+}
+function clearImg() { document.getElementById('drop').innerHTML = '<span id="dropHint">點此上傳<br>目標圖片</span>'; }
+
+/* ---- type chips ---- */
+function renderTypeChips() {
+  const counts = {}; data.forEach(d => { counts[d.type] = (counts[d.type]||0)+1; });
+  const types = allTypes();
+  const el = document.getElementById('typeChips');
+  const chip = (name, n, val) => `<div class="chip ${selectedType===val?'on':''}" onclick="pickType('${val.replace(/'/g,"\\'")}')">${esc(name)}<span class="n">${n}</span></div>`;
+  el.innerHTML = chip('全部', data.length, '全部') +
+    types.map(t => chip(t, counts[t]||0, t)).join('');
+}
+function pickType(t) { selectedType = t; drawnIds = new Set(); renderTypeChips(); }
+
+/* ---- random pick ---- */
+function poolForType() {
+  return selectedType === '全部' ? data.slice() : data.filter(d => d.type === selectedType);
+}
+function shuffle(a) { for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function doPick(fresh) {
+  let n = parseInt(document.getElementById('pickN').value, 10);
+  if (isNaN(n) || n < 1) n = 1;
+  const pool = poolForType().filter(d => (d.text||'').trim());
+  if (!pool.length) { toast('這個類型沒有可抽的貼圖文字'); lastPick = []; renderResults(); return; }
+  if (fresh) drawnIds = new Set();
+  let remaining = shuffle(pool.filter(d => !drawnIds.has(d.id)));
+  let picked;
+  if (remaining.length >= n) {
+    picked = remaining.slice(0, n);
+  } else {
+    // not enough unseen left: take the rest, then start a fresh round for the remainder
+    const rest = remaining.slice();
+    if (!fresh && rest.length) toast('已抽完整個類型，開始新一輪');
+    drawnIds = new Set(rest.map(d => d.id));
+    const refill = shuffle(pool.filter(d => !drawnIds.has(d.id))).slice(0, n - rest.length);
+    picked = rest.concat(refill);
+  }
+  picked.forEach(d => drawnIds.add(d.id));
+  lastPick = picked;
+  renderResults();
+}
+function renderResults() {
+  const bar = document.getElementById('resultsBar');
+  const box = document.getElementById('results');
+  if (!lastPick.length) { bar.style.display = 'none'; box.innerHTML = ''; return; }
+  bar.style.display = 'flex';
+  const poolSize = poolForType().filter(d => (d.text||'').trim()).length;
+  document.getElementById('pickCnt').textContent = `抽到 ${lastPick.length} 個（${selectedType}・本輪已看過 ${drawnIds.size}/${poolSize}）`;
+  box.innerHTML = lastPick.map((d, i) => `
+    <div class="rcard" id="rc${i}">
+      <div class="top">
+        <div><span class="txt">${esc(d.text)}</span> <span class="meta">#${esc(d.id)}</span> <span class="tag">${esc(d.type||'—')}</span></div>
+        <div class="acts">
+          <button onclick="copyText(${JSON.stringify(composeEn(d.poseEn)).replace(/"/g,'&quot;')}, '已複製咒語')">複製咒語</button>
+        </div>
+      </div>
+      <div class="prompt">${esc(composeEn(d.poseEn))}</div>
+    </div>`).join('');
+  syncTogglePromptsBtn();
+}
+let promptsShown = false;
+function toggleAllPrompts() {
+  promptsShown = !promptsShown;
+  document.querySelectorAll('#results .rcard').forEach(c => c.classList.toggle('show-prompt', promptsShown));
+  syncTogglePromptsBtn();
+}
+function syncTogglePromptsBtn() {
+  document.querySelectorAll('#results .rcard').forEach(c => c.classList.toggle('show-prompt', promptsShown));
+  document.getElementById('togglePromptsBtn').textContent = promptsShown ? '隱藏完整咒語' : '顯示完整咒語';
+}
+function copyAllTexts() { if (!lastPick.length) return; copyText(lastPick.map(d => d.text).join('\n'), '已複製全部文字'); }
+function copyAllPrompts() { if (!lastPick.length) return; copyText(lastPick.map(d => `【${d.text}】\n${composeEn(d.poseEn)}`).join('\n\n'), '已複製全部咒語'); }
+
+/* ---- DB table ---- */
+function renderDb() {
+  document.getElementById('dbCount').textContent = data.length ? `(${data.length})` : '';
+  const q = query.toLowerCase();
+  const rows = data.map((d,i)=>({d,i})).filter(({d}) => !q ||
+    String(d.id).toLowerCase().includes(q) || (d.text||'').toLowerCase().includes(q) ||
+    (d.type||'').toLowerCase().includes(q) || (d.poseEn||'').toLowerCase().includes(q) || (d.poseZh||'').toLowerCase().includes(q));
+  document.getElementById('stats').textContent = query ? `顯示 ${rows.length} / ${data.length} 組` : `共 ${data.length} 組`;
+  document.getElementById('empty').style.display = data.length ? 'none' : 'block';
+  document.getElementById('tbody').innerHTML = rows.map(({d,i}) => `
+    <tr>
+      <td class="col-id">${highlight(d.id)}</td>
+      <td class="col-text">${highlight(d.text)}</td>
+      <td class="col-type">${d.type?`<span class="tag">${highlight(d.type)}</span>`:'—'}</td>
+      <td class="col-en">${highlight(d.poseEn)}</td>
+      <td class="col-zh">${highlight(d.poseZh)}</td>
+      <td class="col-actions">
+        <button class="row-btn copy" onclick="copyText(window.__cp(${i}), '已複製咒語')">複製咒語</button>
+        <button class="row-btn" onclick="openEdit(${i})">編輯</button>
+        <button class="row-btn del" onclick="delRow(${i})">刪除</button>
+      </td>
+    </tr>`).join('');
+}
+window.__cp = i => composeEn(data[i].poseEn);
+
+/* ---- edit ---- */
+function fillTypeSelect(sel, val) {
+  const types = allTypes();
+  sel.innerHTML = '<option value="">（未分類）</option>' + types.map(t => `<option value="${esc(t)}"${t===val?' selected':''}>${esc(t)}</option>`).join('');
+}
+function editPreview() { document.getElementById('editPreview').textContent = composeEn(document.getElementById('fEn').value.trim() || 'POSE'); }
+function openEdit(index) {
+  const isEdit = typeof index === 'number';
+  document.getElementById('editTitle').textContent = isEdit ? '編輯貼圖' : '新增貼圖';
+  document.getElementById('editIndex').value = isEdit ? index : '';
+  const d = isEdit ? data[index] : { id:'', text:'', type:'', poseEn:'', poseZh:'' };
+  document.getElementById('fId').value = isEdit ? d.id : '';
+  document.getElementById('fText').value = d.text || '';
+  fillTypeSelect(document.getElementById('fType'), d.type || '');
+  document.getElementById('fEn').value = d.poseEn || '';
+  document.getElementById('fZh').value = d.poseZh || '';
+  editPreview();
+  document.getElementById('editOverlay').classList.add('show');
+  document.getElementById('fText').focus();
+}
+function closeEdit() { document.getElementById('editOverlay').classList.remove('show'); }
+function saveEdit() {
+  const idxRaw = document.getElementById('editIndex').value;
+  const rec = {
+    id: document.getElementById('fId').value.trim(),
+    text: document.getElementById('fText').value.trim(),
+    type: document.getElementById('fType').value,
+    poseEn: document.getElementById('fEn').value.trim(),
+    poseZh: document.getElementById('fZh').value.trim(),
+  };
+  if (!rec.text && !rec.poseEn && !rec.poseZh) { toast('請至少填一個欄位'); return; }
+  if (idxRaw === '') { if (!rec.id) rec.id = nextId(); data.push(rec); }
+  else { if (!rec.id) rec.id = data[+idxRaw].id || nextId(); data[+idxRaw] = rec; }
+  save(); closeEdit(); toast('已儲存');
+}
+function delRow(i) { if (!confirm(`刪除「${data[i].text || data[i].id}」？`)) return; data.splice(i,1); save(); toast('已刪除'); }
+function clearAll() {
+  if (!data.length) return;
+  if (!confirm(`確定清空全部 ${data.length} 組資料？建議先匯出 CSV 備份。`)) return;
+  data = []; save(); toast('已清空');
+}
+
+/* ---- bulk import ---- */
+function openImport() {
+  document.getElementById('importText').value = ''; document.getElementById('importPreview').textContent = '';
+  document.getElementById('importOverlay').classList.add('show'); document.getElementById('importText').focus();
+}
+function closeImport() { document.getElementById('importOverlay').classList.remove('show'); }
+function getDelim() { const v = document.querySelector('input[name="delim"]:checked').value; return v==='tab'?'\t':v==='pipe'?'|':','; }
+function doImport() {
+  const delim = getDelim();
+  const lines = document.getElementById('importText').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  let added = 0;
+  for (const line of lines) {
+    const p = line.split(delim).map(x=>x.trim());
+    if (/^編號$/.test(p[0]) && /貼圖/.test(p[1]||'')) continue;
+    const rec = { id: p[0]||nextId(), text: p[1]||'', type: p[2]||'', poseEn: p[3]||'', poseZh: p[4]||'' };
+    if (!rec.text && !rec.poseEn && !rec.poseZh) continue;
+    data.push(rec); added++;
+  }
+  save(); closeImport(); toast(`已匯入 ${added} 組`);
+}
+document.getElementById('importText').addEventListener('input', () => {
+  const n = document.getElementById('importText').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).length;
+  document.getElementById('importPreview').textContent = n ? `偵測到約 ${n} 行` : '';
+});
+
+/* ---- CSV ---- */
+function csvCell(s) { s = String(s ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
+function exportCSV() {
+  if (!data.length) { toast('沒有資料可匯出'); return; }
+  const header = ['編號','貼圖文字','類型','動作(English)','動作(中文)','完整AI咒語(English)'];
+  const rows = data.map(d => [d.id,d.text,d.type,d.poseEn,d.poseZh,composeEn(d.poseEn)].map(csvCell).join(','));
+  const csv = '﻿' + [header.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `貼圖文字_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href); toast('已匯出 CSV');
+}
+function parseCSV(text) {
+  const rows=[]; let row=[],cell='',inQ=false; text=text.replace(/^﻿/,'');
+  for (let i=0;i<text.length;i++){ const c=text[i];
+    if (inQ){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else inQ=false;} else cell+=c; }
+    else { if(c==='"')inQ=true; else if(c===','){row.push(cell);cell='';} else if(c==='\n'){row.push(cell);rows.push(row);row=[];cell='';} else if(c==='\r'){} else cell+=c; }
+  }
+  if (cell!==''||row.length){ row.push(cell); rows.push(row); } return rows;
+}
+function importCSVFile(e) {
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{ const rows=parseCSV(reader.result).filter(r=>r.some(c=>c.trim()!=='')); let added=0;
+    for (const r of rows){
+      if (/^編號$/.test((r[0]||'').trim()) && /貼圖/.test(r[1]||'')) continue;
+      const rec={ id:(r[0]||'').trim()||nextId(), text:(r[1]||'').trim(), type:(r[2]||'').trim(), poseEn:(r[3]||'').trim(), poseZh:(r[4]||'').trim() };
+      if (!rec.text && !rec.poseEn && !rec.poseZh) continue;
+      data.push(rec); added++;
+    }
+    save(); toast(`已從 CSV 匯入 ${added} 組`);
+  };
+  reader.readAsText(file); e.target.value='';
+}
+
+/* ---- events ---- */
+document.getElementById('search').addEventListener('input', e => { query = e.target.value.trim(); renderDb(); });
+document.getElementById('fEn').addEventListener('input', editPreview);
+document.addEventListener('keydown', e => { if (e.key==='Escape'){ closeEdit(); closeImport(); } });
+[document.getElementById('editOverlay'), document.getElementById('importOverlay')].forEach(ov => ov.addEventListener('click', e => { if (e.target===ov) ov.classList.remove('show'); }));
+
+syncTemplateFields();
+renderTypeChips();
+renderDb();
+</script>
+</body>
+</html>
